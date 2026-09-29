@@ -106,14 +106,14 @@
 
   .lastline{display:flex;align-items:center;gap:8px;margin-top:11px;font-size:12.5px;color:var(--fog);font-variant-numeric:tabular-nums;}
   .lastline b{color:var(--moonlight);font-weight:600;}
-  .progress-flag{display:inline-flex;align-items:center;gap:6px;margin-top:11px;font-size:12.5px;font-weight:600;
+  .progress-flag,.stall-flag{display:inline-flex;align-items:center;gap:6px;margin-top:11px;font-size:12.5px;font-weight:600;
     color:#bff3e6;background:rgba(38,150,132,.16);box-shadow:inset 0 0 0 1px rgba(38,150,132,.5);
     padding:5px 10px;border-radius:7px;}
+  .stall-flag{color:#f6c3b4;background:rgba(228,109,76,.14);box-shadow:inset 0 0 0 1px rgba(228,109,76,.45);}
 
   /* logging row */
   .logrow{display:flex;gap:8px;align-items:flex-end;margin-top:12px;}
   .logrow .f{flex:1;}
-  .logrow.time .reps{display:none;}
   label{display:block;font-size:11px;font-weight:600;color:var(--fog);margin:0 0 5px;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase;}
   input,select{width:100%;padding:11px 12px;border:0;border-radius:9px;background:var(--plate-2);
     color:var(--ice);box-shadow:var(--inset);font-size:16px;font-family:var(--font);font-variant-numeric:tabular-nums;}
@@ -153,6 +153,10 @@
   .delta.flat{color:var(--fog);box-shadow:var(--inset);}
   .sub{font-size:12.5px;color:var(--fog);margin-bottom:4px;}
   .est{font-family:var(--mono);font-size:11.5px;color:var(--frost);margin-top:6px;letter-spacing:.03em;}
+  .range{display:flex;gap:4px;background:var(--plate-2);border-radius:9px;padding:3px;box-shadow:var(--inset);margin-top:12px;}
+  .range button{flex:1;border:0;background:transparent;padding:7px 4px;border-radius:7px;cursor:pointer;
+    font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--fog);}
+  .range button.active{background:var(--plate);color:var(--ice);box-shadow:var(--inset);}
 
   svg{width:100%;height:auto;display:block;margin-top:8px;}
   .pt-label{font-family:var(--mono);font-size:11px;font-weight:500;fill:var(--ice);font-variant-numeric:tabular-nums;}
@@ -231,6 +235,10 @@
   <div id="tab-prog" style="display:none">
     <div class="card">
       <div class="f"><label>Ver progreso de</label><select id="exProg" onchange="renderProgress()"></select></div>
+      <div class="range" id="range">
+        <button data-r="etapa" class="active" onclick="setRange('etapa')">Etapa actual</button>
+        <button data-r="todo" onclick="setRange('todo')">Todo</button>
+      </div>
       <div id="readout"></div>
       <div id="chart"></div>
     </div>
@@ -251,7 +259,8 @@
 
 <script>
 /* ===================== PLAN ===================== */
-/* unit:'lb' por defecto; 's' = segundos (plancha). lo/hi = rango de reps objetivo. */
+/* mode: "peso" (por defecto) · "asistido" (weight = ayuda, menos es mejor) · "tiempo" (weight = segundos) · "reps" (sin peso).
+   lo/hi = rango objetivo (reps, o segundos en modo tiempo). */
 const DAYS = [
   { idx:1, name:"Lunes", title:"Pierna completa", sub:"cuádriceps · femoral · glúteo", kind:"lift", exercises:[
     { name:"Sentadilla", sets:4, lo:8, hi:10, pri:true, cue:"Baja a ~90°, espalda firme. Sube el peso de a poco — es tu prioridad de progreso." },
@@ -269,7 +278,7 @@ const DAYS = [
     { name:"Rompecráneos", sets:3, lo:10, hi:12, opt:true, cue:"Acostado, flexiona solo los codos bajando hacia la frente. No muevas los hombros." },
   ]},
   { idx:3, name:"Miércoles", title:"Espalda + Bíceps", kind:"lift", exercises:[
-    { name:"Dominadas", sets:4, lo:6, hi:10, pri:true, cue:"Manos algo más anchas que los hombros, retracción escapular. Usa banda si hace falta." },
+    { name:"Dominadas", sets:4, lo:6, hi:10, pri:true, mode:"asistido", cue:"Manos algo más anchas que los hombros, retracción escapular. Anota la ayuda de la máquina: menos ayuda = progreso." },
     { name:"Remo", sets:4, lo:8, hi:10, pri:true, cue:"Espalda recta, lleva el codo hacia atrás. Sigue progresando — eres fuerte aquí." },
     { name:"Jalón al pecho", sets:3, lo:10, hi:12, cue:"Barra al pecho, no balancees el torso hacia atrás." },
     { name:"Curl con barra", sets:3, lo:8, hi:12, cue:"Solo flexiona los codos, sin ayuda de hombros." },
@@ -282,8 +291,8 @@ const DAYS = [
     { name:"Elevaciones laterales", sets:4, lo:12, hi:15, cue:"Clave para hombro ancho. Peso ligero, técnica estricta, sin balanceo." },
     { name:"Face pull / Pájaros", sets:3, lo:12, hi:15, isNew:true, cue:"Tira hacia la cara abriendo los codos y juntando los omóplatos. Salud de hombro y postura." },
     { name:"Encogimientos para trapecio", sets:3, lo:12, hi:15, opt:true, cue:"Eleva los hombros hacia las orejas sin doblar los codos." },
-    { name:"Plancha", sets:3, lo:30, hi:45, unit:"s", cue:"Sin subir glúteos ni dejar caer la pelvis." },
-    { name:"Crunch / Elevación de piernas", sets:3, lo:12, hi:15, cue:"Lleva el ombligo hacia la columna, sin tirar del cuello." },
+    { name:"Plancha", sets:3, lo:30, hi:45, mode:"tiempo", cue:"Sin subir glúteos ni dejar caer la pelvis." },
+    { name:"Crunch / Elevación de piernas", sets:3, lo:12, hi:15, mode:"reps", cue:"Lleva el ombligo hacia la columna, sin tirar del cuello." },
   ]},
   { idx:6, name:"Sábado", title:"Recuperación activa", kind:"rest", ic:"🚶",
     note:"Caminata, estiramiento o movilidad. Opcional mini-pierna (15–20 min): Hip thrust 3×12 · Curl femoral 3×12 · Pantorrilla 3×15." },
@@ -291,12 +300,39 @@ const DAYS = [
     note:"Relaja y recupera. Ojo: el peso que baja en el sauna es agua, no grasa." },
 ];
 const ORDER = [1,2,3,4,5,6,0]; // Lun→Dom para el selector y la barra
+const BODYWEIGHT = 160;       // lb aprox. — peso efectivo en asistidos = BODYWEIGHT − ayuda
+const STAGE = { start:"2026-09-28", label:"Etapa nueva" }; // post-mudanza: el progreso se compara desde aquí
 
 function dayByIdx(i){ return DAYS.find(d=>d.idx===i); }
 function allExercises(){ const a=[]; DAYS.forEach(d=>(d.exercises||[]).forEach(e=>a.push({...e,day:d.name}))); return a; }
 function findEx(name){ return allExercises().find(e=>e.name===name); }
-function target(e){ return e.unit==="s" ? `${e.sets}×${e.lo}–${e.hi}s` : `${e.sets}×${e.lo}–${e.hi}`; }
-function unitOf(e){ return e?.unit==="s" ? "s" : "lb"; }
+function modeOf(e){ return e?.mode || "peso"; }
+function target(e){ return modeOf(e)==="tiempo" ? `${e.sets}×${e.lo}–${e.hi}s` : `${e.sets}×${e.lo}–${e.hi}`; }
+function unitOf(e){ const m=modeOf(e); return m==="tiempo" ? "s" : m==="reps" ? "reps" : "lb"; }
+
+/* ===================== Modos: cómo se lee cada serie ===================== */
+/* número que se grafica — siempre "más alto = mejor" */
+function valueOf(m,s){
+  if(m==="asistido") return BODYWEIGHT - s.weight;
+  if(m==="reps") return s.reps;
+  return s.weight;
+}
+/* >0 si la serie a es mejor que b; 0 si son iguales */
+function cmpSets(m,a,b){
+  const dv=valueOf(m,a)-valueOf(m,b);
+  if(dv || m==="tiempo" || m==="reps") return dv;
+  return (a.reps||0)-(b.reps||0);   // mismo peso → desempata por reps
+}
+function bestOf(m,sets){ return sets.reduce((a,b)=>cmpSets(m,b,a)>0?b:a); }
+function fmtSet(m,s){
+  if(m==="tiempo") return `${s.weight}s`;
+  if(m==="reps") return `${s.reps} reps`;
+  if(m==="asistido") return `ayuda ${s.weight}lb × ${s.reps}`;
+  return `${s.weight}lb × ${s.reps}`;
+}
+const NEXT_STEP = { peso:"sube 2.5–5 lb", asistido:"quita 5 lb de ayuda", tiempo:"suma 5–10 s", reps:"suma 1–2 reps o usa una variante más difícil" };
+const STALL_TIP = { peso:"sube 2.5 lb aunque bajes 1–2 reps, o suma 1 rep", asistido:"quita 5 lb de ayuda aunque bajes reps, o suma 1 rep",
+                    tiempo:"suma 5 s", reps:"suma 1–2 reps" };
 
 /* ===================== Estado + almacenamiento ===================== */
 const KEY="gymster.sessions.v2";
@@ -327,17 +363,25 @@ function lastSession(name){
   const e=setsFor(name); if(!e.length) return null;
   const last=e[e.length-1].date; return { date:last, sets:e.filter(x=>x.date===last) };
 }
-/* serie tope (mayor peso) por fecha — base del gráfico y readout */
-function topByDate(name){
-  const map=new Map();
-  setsFor(name).forEach(s=>{ const cur=map.get(s.date); if(!cur||s.weight>cur.weight) map.set(s.date,s); });
+/* mejor serie por fecha (según el modo) — base del gráfico, readout y estancamiento */
+function bestByDate(name){
+  const m=modeOf(findEx(name)), map=new Map();
+  setsFor(name).forEach(s=>{ const cur=map.get(s.date); if(!cur||cmpSets(m,s,cur)>0) map.set(s.date,s); });
   return [...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
 }
 function epley(w,r){ return Math.round(w*(1+ (r||1)/30)); }
+/* la mejor serie de la última sesión llegó al tope del rango */
 function shouldProgress(e){
-  const ls=lastSession(e.name); if(!ls||!ls.sets.length) return false;
-  if(e.unit==="s") return ls.sets.every(s=>s.weight>=e.hi);
-  return ls.sets.length>=Math.min(2,e.sets) && ls.sets.every(s=>s.reps>=e.hi);
+  const ls=lastSession(e.name); if(!ls) return false;
+  const m=modeOf(e), b=bestOf(m,ls.sets);
+  return (m==="tiempo" ? b.weight : b.reps) >= e.hi;
+}
+/* cuántas sesiones seguidas (al final) tienen la misma mejor serie; 0 si son menos de 3 */
+function stallCount(e){
+  const m=modeOf(e), d=bestByDate(e.name); if(d.length<3) return 0;
+  const last=d[d.length-1]; let n=0;
+  for(let i=d.length-1; i>=0 && cmpSets(m,d[i],last)===0; i--) n++;
+  return n>=3 ? n : 0;
 }
 
 /* ===================== Tabs ===================== */
@@ -381,7 +425,7 @@ function renderHoy(){
   }
   body.innerHTML="";
   d.exercises.forEach(e=>{
-    const sg=slug(e.name), u=unitOf(e), isTime=e.unit==="s";
+    const sg=slug(e.name), m=modeOf(e);
     const ls=lastSession(e.name);
     const card=document.createElement("div"); card.className="card";
 
@@ -392,14 +436,19 @@ function renderHoy(){
 
     let lastHtml="";
     if(ls){
-      const top=ls.sets.reduce((a,b)=>a.weight>b.weight?a:b);
       lastHtml=`<div class="lastline">Última vez <b>${fmtDate(ls.date)}</b> ·
-        <b>${top.weight}${u}${isTime?"":` × ${top.reps}`}</b> · ${ls.sets.length} serie(s)</div>`;
+        <b>${fmtSet(m,bestOf(m,ls.sets))}</b> · ${ls.sets.length} serie(s)</div>`;
     }else{
       lastHtml=`<div class="lastline">Sin registros aún — marca tu primera serie.</div>`;
     }
-    const flag = shouldProgress(e)
-      ? `<div class="progress-flag">⬆ ¡Subir ${isTime?"tiempo":"peso"}! Llegaste al tope del rango — suma ${isTime?"5–10 s":"2.5–5 lb o 1 rep"}.</div>` : "";
+    let flag="";
+    if(shouldProgress(e)){
+      flag=`<div class="progress-flag">⬆ Llegaste al tope del rango — próxima vez: ${NEXT_STEP[m]}.</div>`;
+    }else{
+      const n=stallCount(e);
+      if(n) flag=`<div class="stall-flag">⚠ ${n} sesiones seguidas en ${fmtSet(m,bestOf(m,ls.sets))} — prueba: ${STALL_TIP[m]}.</div>`;
+    }
+    const wLabel={ peso:"Peso (lb)", asistido:"Ayuda (lb)", tiempo:"Segundos" }[m];
 
     card.innerHTML=`
       <div class="ex-head">
@@ -409,11 +458,11 @@ function renderHoy(){
       ${tagHtml?`<div class="tags">${tagHtml}</div>`:""}
       <p class="cue">${e.cue}</p>
       ${lastHtml}${flag}
-      <div class="logrow ${isTime?"time":""}">
-        <div class="f"><label>${isTime?"Segundos":"Peso (lb)"}</label>
-          <input id="w-${sg}" type="number" inputmode="decimal" placeholder="0"/></div>
-        <div class="f reps"><label>Reps</label>
-          <input id="r-${sg}" type="number" inputmode="numeric" placeholder="0"/></div>
+      <div class="logrow">
+        ${m!=="reps"?`<div class="f"><label>${wLabel}</label>
+          <input id="w-${sg}" type="number" inputmode="decimal" placeholder="0"/></div>`:""}
+        ${m!=="tiempo"?`<div class="f"><label>Reps</label>
+          <input id="r-${sg}" type="number" inputmode="numeric" placeholder="0"/></div>`:""}
         <button class="addset" onclick="addSet('${e.name.replace(/'/g,"\\'")}')">+</button>
       </div>
       <div class="today-sets" id="sets-${sg}"></div>`;
@@ -422,27 +471,25 @@ function renderHoy(){
   });
 }
 function renderTodaySets(name){
-  const e=findEx(name)||{}; const u=unitOf(e), isTime=e.unit==="s";
+  const m=modeOf(findEx(name));
   const box=document.getElementById("sets-"+slug(name)); if(!box) return;
   const sets=todaySetsFor(name);
   box.innerHTML = sets.map((s,i)=>
-    `<span class="setpill"><span class="n">S${i+1}</span> ${s.weight}${u}${isTime?"":` × ${s.reps}`}
+    `<span class="setpill"><span class="n">S${i+1}</span> ${fmtSet(m,s)}
       <button class="x" onclick="delSet('${s.id}')">✕</button></span>`).join("");
 }
 async function addSet(name){
-  const e=findEx(name); const isTime=e&&e.unit==="s"; const sg=slug(name);
-  const w=parseFloat(document.getElementById("w-"+sg).value);
-  const r=isTime?1:parseInt(document.getElementById("r-"+sg).value,10);
-  if(isNaN(w)||w<=0){ document.getElementById("w-"+sg).focus(); return; }
-  if(!isTime && (isNaN(r)||r<=0)){ document.getElementById("r-"+sg).focus(); return; }
+  const e=findEx(name), m=modeOf(e), sg=slug(name);
+  const wIn=document.getElementById("w-"+sg), rIn=document.getElementById("r-"+sg);
+  const w = m==="reps" ? 0 : parseFloat(wIn.value);
+  const r = m==="tiempo" ? 1 : parseInt(rIn.value,10);
+  // en asistido, 0 lb de ayuda = dominada completa (válido)
+  if(m!=="reps" && !(m==="asistido" ? w>=0 : w>0)){ wIn.focus(); return; }
+  if(m!=="tiempo" && !(r>0)){ rIn.focus(); return; }
   const dayName=dayByIdx(+document.getElementById("daySel").value).name;
   state.sessions.push({ id:uid(), date:todayISO(), day:dayName, exercise:name, weight:w, reps:r, unit:unitOf(e) });
   await persist();
-  document.getElementById("w-"+sg).value="";
-  if(!isTime) document.getElementById("r-"+sg).value="";
-  renderTodaySets(name);
-  // refrescar última vez / flag de esa tarjeta
-  renderHoy();
+  renderHoy();   // re-dibuja la tarjeta: limpia inputs, actualiza "última vez" y avisos
 }
 async function addCustom(){
   const name=(document.getElementById("customName").value||"").trim();
@@ -476,36 +523,60 @@ function refreshProgSelect(){
   progExerciseNames().forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
   if(keep && progExerciseNames().includes(keep)) sel.value=keep;
 }
+let progRange="etapa";   // "etapa" = desde STAGE.start · "todo" = historial completo
+function setRange(r){
+  progRange=r;
+  document.querySelectorAll("#range button").forEach(b=>b.classList.toggle("active", b.dataset.r===r));
+  renderProgress();
+}
 function renderProgress(){
   refreshProgSelect();
   const name=document.getElementById("exProg").value;
-  const e=findEx(name); const u=unitOf(e), isTime=e&&e.unit==="s";
-  const data=topByDate(name);
+  const e=findEx(name), m=modeOf(e), u=unitOf(e);
+  const all=bestByDate(name);
+  const inStage=progRange==="etapa";
+  const data=inStage ? all.filter(s=>s.date>=STAGE.start) : all;
   const ro=document.getElementById("readout"), chart=document.getElementById("chart");
-  if(!data.length){ ro.innerHTML=""; chart.innerHTML='<div class="empty">Registra al menos una serie de este ejercicio para ver el gráfico.</div>'; return; }
-  const first=data[0].weight, last=data[data.length-1], diff=+(last.weight-first).toFixed(1);
+  if(!data.length){
+    ro.innerHTML="";
+    chart.innerHTML = all.length
+      ? `<div class="empty">Aún no hay registros en la etapa actual (desde ${fmtDate(STAGE.start)}). Toca «Todo» para ver el historial.</div>`
+      : '<div class="empty">Registra al menos una serie de este ejercicio para ver el gráfico.</div>';
+    return;
+  }
+  const pts=data.map(s=>({ date:s.date, v:valueOf(m,s) }));
+  const last=data[data.length-1], lastV=pts[pts.length-1].v, diff=+(lastV-pts[0].v).toFixed(1);
   const cls=diff>0?"up":(diff<0?"down":"flat"), sign=diff>0?"+":"";
+  const est = m==="peso" ? `<div class="est">1RM estimado ≈ ${epley(last.weight,last.reps)} lb</div>`
+            : m==="asistido" ? `<div class="est">Peso efectivo = ${BODYWEIGHT} lb − ayuda</div>` : "";
   ro.innerHTML=
-    `<div class="readout"><span class="big">${last.weight}</span><span class="unit">${u}</span>
+    `<div class="readout"><span class="big">${lastV}</span><span class="unit">${m==="asistido"?"lb efectivas":u}</span>
        <span class="delta ${cls}">${sign}${diff} ${u}</span></div>
-     <div class="sub">${data.length} sesión(es) · mejor serie: ${last.weight}${u}${isTime?"":` × ${last.reps} reps`}</div>
-     ${isTime?"":`<div class="est">1RM estimado ≈ ${epley(last.weight,last.reps)} lb</div>`}`;
-  chart.innerHTML=buildChart(data, isTime);
+     <div class="sub">${data.length} sesión(es)${inStage?` desde ${fmtDate(STAGE.start)}`:""} · última: ${fmtSet(m,last)}</div>
+     ${est}`;
+  chart.innerHTML=buildChart(pts, !inStage);
 }
-function buildChart(data, isTime){
+/* pts = [{date, v}] con "más alto = mejor". showStage dibuja la línea de etapa nueva. */
+function buildChart(data, showStage){
   const pts=data.slice(-8);
   const W=560,H=240,padL=22,padR=22,padT=42,padB=34;
-  const ws=pts.map(p=>p.weight); let mn=Math.min(...ws),mx=Math.max(...ws);
+  const ws=pts.map(p=>p.v); let mn=Math.min(...ws),mx=Math.max(...ws);
   if(mn===mx){ mn-=5; mx+=5; } else { const p=(mx-mn)*0.25; mn-=p; mx+=p; }
   const x=i=> pts.length===1 ? W/2 : padL + i*(W-padL-padR)/(pts.length-1);
   const y=v=> padT + (1-(v-mn)/(mx-mn))*(H-padT-padB);
-  let path="",dots="",labels="",xl="";
-  pts.forEach((p,i)=>{ path+=(i===0?"M":"L")+x(i).toFixed(1)+" "+y(p.weight).toFixed(1)+" "; });
-  pts.forEach((p,i)=>{ const px=x(i),py=y(p.weight);
+  let path="",dots="",labels="",xl="",marker="";
+  pts.forEach((p,i)=>{ path+=(i===0?"M":"L")+x(i).toFixed(1)+" "+y(p.v).toFixed(1)+" "; });
+  pts.forEach((p,i)=>{ const px=x(i),py=y(p.v);
     dots+=`<circle cx="${px}" cy="${py}" r="4.5" fill="#7d57f6" stroke="#05060f" stroke-width="1.5"/>`;
-    labels+=`<text class="pt-label" x="${px}" y="${py-12}" text-anchor="middle">${p.weight}</text>`;
+    labels+=`<text class="pt-label" x="${px}" y="${py-12}" text-anchor="middle">${p.v}</text>`;
     xl+=`<text class="x-label" x="${px}" y="${H-12}" text-anchor="middle">${fmtDate(p.date)}</text>`;
   });
+  const si=pts.findIndex(p=>p.date>=STAGE.start);
+  if(showStage && si>0){
+    const sx=((x(si-1)+x(si))/2).toFixed(1);
+    marker=`<line x1="${sx}" x2="${sx}" y1="${padT-18}" y2="${H-padB}" stroke="#027dea" stroke-width="1.5" stroke-dasharray="4 4"/>
+      <text class="x-label" x="${sx}" y="${padT-24}" text-anchor="middle" style="fill:#027dea">${STAGE.label}</text>`;
+  }
   const area=`${path} L ${x(pts.length-1).toFixed(1)} ${H-padB} L ${x(0).toFixed(1)} ${H-padB} Z`;
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img">
     <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
@@ -513,7 +584,7 @@ function buildChart(data, isTime){
       <stop offset="100%" stop-color="#663af3" stop-opacity="0"/></linearGradient></defs>
     ${pts.length>1?`<path d="${area}" fill="url(#fill)"/>`:""}
     ${pts.length>1?`<path d="${path}" fill="none" stroke="#7d57f6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`:""}
-    ${dots}${labels}${xl}</svg>`;
+    ${marker}${dots}${labels}${xl}</svg>`;
 }
 
 /* ===================== GUÍA ===================== */
@@ -552,7 +623,7 @@ function renderPlan(){
   const n=document.createElement("div"); n.className="card";
   n.innerHTML=`<p class="ch">Cómo progresar</p>
     <p class="note">Elige 1–2 lifts principales por día (<b>Sentadilla, Banca, Dominadas/Remo, Press hombro</b>) y anótalos.
-    Cuando completes el <b>tope del rango con buena técnica en todas las series</b>, sube ~2.5–5 lb o suma 1 rep la próxima vez.
+    Cuando tu <b>mejor serie llegue al tope del rango con buena técnica</b>, sube ~2.5–5 lb (o quita 5 lb de ayuda en dominadas) la próxima vez.
     Compuestos 6–10 reps, aislados 10–15. Deja 1–3 reps en el tanque.</p>
     <p class="ch" style="margin-top:16px">Nutrición y extras</p>
     <p class="note">Déficit ligero (~300–500 kcal). Proteína <b>120–150 g/día</b>. Creatina <b>3–5 g</b> todos los días.
